@@ -51,10 +51,7 @@ private struct StudioView: View {
                     Text("Drop it, sketch it, transform it. Images are center-cropped automatically.").foregroundStyle(.secondary)
                 }
                 Spacer()
-                Picker("Model", selection: $state.preset) {
-                    ForEach(Pix2PixPreset.allCases) { Text($0.title).tag($0) }
-                }
-                .labelsHidden().frame(width: 220)
+                ModelAndDatasetMenu()
                 StatusPill(installed: state.modelStates[state.preset] == true)
             }
             .padding(22)
@@ -149,6 +146,54 @@ private struct StudioView: View {
     }
 }
 
+private struct ModelAndDatasetMenu: View {
+    @EnvironmentObject private var state: AppState
+
+    var body: some View {
+        Menu {
+            Section("Pix2pix models") {
+                ForEach(Pix2PixPreset.pix2pixModels) { item in
+                    Button {
+                        state.preset = item
+                    } label: {
+                        if state.preset == item { Label(item.title, systemImage: "checkmark") }
+                        else { Text(item.title) }
+                    }
+                }
+            }
+            Section("CycleGAN models") {
+                ForEach(Pix2PixPreset.cycleGANModels) { item in
+                    Button {
+                        state.preset = item
+                    } label: {
+                        if state.preset == item { Label(item.title, systemImage: "checkmark") }
+                        else { Text(item.title) }
+                    }
+                }
+            }
+            Section("Public training datasets") {
+                ForEach(DatasetPackage.allCases) { item in
+                    Button {
+                        state.page = .downloads
+                        state.activity = "\(item.title) is in Models & Data"
+                    } label: {
+                        Text("\(item.title) · \(item.size)")
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 8) {
+                Text(state.preset.title).lineLimit(1)
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.caption2).foregroundStyle(.secondary)
+            }
+            .frame(width: 210)
+        }
+        .menuStyle(.borderlessButton)
+        .help("Choose a runnable model or open a public training dataset")
+    }
+}
+
 private struct DropImageView: View {
     let image: NSImage?
     var body: some View {
@@ -229,9 +274,13 @@ private struct DownloadsView: View {
                     Text("Models & Data").font(.largeTitle.bold())
                     Text("No terminal commands and no folder-name typing. Install only what you want.").foregroundStyle(.secondary)
                 }
-                sectionTitle("PRETRAINED MODELS", detail: "Model installs also prepare their private Python runtime.")
+                sectionTitle("PIX2PIX MODELS", detail: "Paired image-to-image models, plus the community Cats model.")
                 LazyVGrid(columns: columns, spacing: 14) {
-                    ForEach(Pix2PixPreset.allCases) { item in ModelDownloadCard(item: item) }
+                    ForEach(Pix2PixPreset.pix2pixModels) { item in ModelDownloadCard(item: item) }
+                }
+                sectionTitle("CYCLEGAN MODELS", detail: "18 official unpaired transformations · roughly 44 MB each · Metal accelerated.")
+                LazyVGrid(columns: columns, spacing: 14) {
+                    ForEach(Pix2PixPreset.cycleGANModels) { item in ModelDownloadCard(item: item) }
                 }
                 sectionTitle("PAIRED DATASETS", detail: "Large archives expand into the app’s Data folder.")
                 LazyVGrid(columns: columns, spacing: 14) {
@@ -282,7 +331,7 @@ private struct DatasetDownloadCard: View {
             }
             Spacer()
             if state.datasetStates[item] == true { Image(systemName: "checkmark.circle.fill").foregroundStyle(.green) }
-            else { Button("Download") { state.installDataset(item) }.disabled(state.isWorking) }
+            else { Button(item.buttonLabel) { state.installDataset(item) }.disabled(state.isWorking) }
         }.padding(14).background(.background, in: RoundedRectangle(cornerRadius: 12)).overlay(RoundedRectangle(cornerRadius: 12).stroke(.quaternary))
     }
 }

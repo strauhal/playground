@@ -162,7 +162,8 @@ final class AppState: ObservableObject {
                     try await self.run("/usr/bin/tar", ["-xzf", archive.path, "-C", directory.path])
                     try? FileManager.default.removeItem(at: archive)
                 } else {
-                    let official = URL(string: "https://efrosgans.eecs.berkeley.edu/pix2pix/models-pytorch/\(item.checkpointName).pth")!
+                    let collection = item.isCycleGAN ? "cyclegan/pretrained_models" : "pix2pix/models-pytorch"
+                    let official = URL(string: "https://efrosgans.eecs.berkeley.edu/\(collection)/\(item.checkpointName).pth")!
                     var sources = [official]
                     if let id = item.mirrorFileID {
                         let mirror = URL(string: "https://drive.usercontent.google.com/download?id=\(id)&export=download&confirm=t")!
@@ -175,6 +176,11 @@ final class AppState: ObservableObject {
     }
 
     func installDataset(_ item: DatasetPackage) {
+        if item == .cityscapes {
+            NSWorkspace.shared.open(URL(string: "https://www.cityscapes-dataset.com/downloads/")!)
+            activity = "Cityscapes requires its free account and license"
+            return
+        }
         guard !isWorking else { return }
         Task {
             await perform("Downloading \(item.title)") {
@@ -215,7 +221,7 @@ final class AppState: ObservableObject {
                 let python = self.workspace.runtime.appendingPathComponent(self.preset == .cats ? "cats/bin/python" : "pytorch/bin/python")
                 let backend = self.workspace.runtime.appendingPathComponent("pix2pix_backend.py")
                 try PythonBackend.source.write(to: backend, atomically: true, encoding: .utf8)
-                try await self.run(python.path, [backend.path, "--preset", self.preset.rawValue, "--model", modelPath, "--input", inputURL.path, "--output", result.path, "--output-size", String(self.exportSize.rawValue)])
+                try await self.run(python.path, [backend.path, "--architecture", self.preset.backendArchitecture, "--model", modelPath, "--input", inputURL.path, "--output", result.path, "--output-size", String(self.exportSize.rawValue)])
                 guard let image = NSImage(contentsOf: result) else { throw AppError.message("The model finished without a readable output image.") }
                 self.outputURL = result
                 self.outputImage = image
@@ -270,7 +276,11 @@ final class AppState: ObservableObject {
     private func perform(_ title: String, operation: () async throws -> Void) async {
         isWorking = true; activity = title; progress = nil; errorMessage = nil; log = []
         do { try await operation(); activity = "Done" }
-        catch { errorMessage = error.localizedDescription; activity = "Stopped" }
+        catch {
+            let details = log.suffix(6).joined(separator: "\n")
+            errorMessage = details.isEmpty ? error.localizedDescription : "\(error.localizedDescription)\n\n\(details)"
+            activity = "Stopped"
+        }
         isWorking = false; progress = nil; refreshInstallStates()
     }
 
