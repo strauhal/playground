@@ -8,6 +8,12 @@ The app also includes all 18 pretrained CycleGAN generators published by the ori
 
 The Studio dropdown keeps these categories separate: selecting a pretrained model changes the inference engine; selecting a training dataset opens its download card. Cityscapes must be obtained from its official website because its license does not permit the pix2pix project to redistribute it.
 
+Animation mode repeatedly creates an edge map from the latest generated result and feeds it back into the selected model for a user-selected number of frames. The separate Next Frame tab implements the Derrick Schultz workflow: it trains a dedicated Pix2PixHD-style generator on consecutive frames from a user-selected video, then feeds each directly predicted image back into that model without edge extraction. Frames are retained in `~/Pictures/Pix2Pix Studio/frames`, and Stop or quitting the app terminates the current helper process.
+
+Next Frame prediction includes an optional Anchor to starting frame control. It mixes 18% of the original seed into the model's input to resist long-run visual drift, but every saved frame is entirely generator-produced—the original pixels are never overlaid on the output.
+
+Each Next Frame training run is retained as a named checkpoint in `~/Library/Application Support/Pix2Pix Studio/Next Frame/Models`. The Choose Model menu includes those checkpoints plus the original single `latest_net_G.pth` model, remembers the selected model, and lets prediction reuse it without retraining.
+
 ## Open the app
 
 The ready-to-run build is at `dist/Pix2Pix Studio.app`. Double-click it in Finder. You do not need VS Code.

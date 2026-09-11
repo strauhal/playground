@@ -3,6 +3,7 @@ import SwiftUI
 
 enum SidebarPage: String, CaseIterable, Identifiable {
     case studio = "Studio"
+    case nextFrame = "Next Frame"
     case downloads = "Models & Data"
     case files = "Files"
 
@@ -10,6 +11,7 @@ enum SidebarPage: String, CaseIterable, Identifiable {
     var symbol: String {
         switch self {
         case .studio: return "wand.and.stars"
+        case .nextFrame: return "film.stack"
         case .downloads: return "square.and.arrow.down"
         case .files: return "folder"
         }

@@ -9,6 +9,10 @@ struct Workspace {
     let runtime: URL
     let incoming: URL
     let defaultOutput: URL
+    let frames: URL
+    let nextFrame: URL
+    let nextFrameModels: URL
+    let nextFrameModel: URL
 
     init() {
         let home = FileManager.default.homeDirectoryForCurrentUser
@@ -18,11 +22,32 @@ struct Workspace {
         runtime = support.appendingPathComponent("Runtime", isDirectory: true)
         incoming = support.appendingPathComponent("Incoming", isDirectory: true)
         defaultOutput = home.appendingPathComponent("Pictures/Pix2Pix Studio", isDirectory: true)
+        frames = defaultOutput.appendingPathComponent("frames", isDirectory: true)
+        nextFrame = support.appendingPathComponent("Next Frame", isDirectory: true)
+        nextFrameModels = nextFrame.appendingPathComponent("Models", isDirectory: true)
+        nextFrameModel = nextFrame.appendingPathComponent("latest_net_G.pth")
     }
 
     func createDirectories(output: URL? = nil) throws {
-        for url in [support, models, datasets, runtime, incoming, output ?? defaultOutput] {
+        for url in [support, models, datasets, runtime, incoming, defaultOutput, frames, nextFrame, nextFrameModels, output ?? defaultOutput] {
             try fm.createDirectory(at: url, withIntermediateDirectories: true)
+        }
+    }
+
+    func nextFrameModelURLs() -> [URL] {
+        var urls: [URL] = []
+        if fm.fileExists(atPath: nextFrameModel.path) { urls.append(nextFrameModel) }
+        if let stored = try? fm.contentsOfDirectory(
+            at: nextFrameModels,
+            includingPropertiesForKeys: [.contentModificationDateKey],
+            options: [.skipsHiddenFiles]
+        ) {
+            urls += stored.filter { $0.pathExtension.lowercased() == "pth" }
+        }
+        return urls.sorted {
+            let left = (try? $0.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+            let right = (try? $1.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+            return left > right
         }
     }
 
@@ -70,6 +95,11 @@ final class DownloadService: NSObject, URLSessionDownloadDelegate {
         }
     }
 
+    func cancel() {
+        session?.invalidateAndCancel()
+        finish(.failure(CancellationError()))
+    }
+
     func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didWriteData bytesWritten: Int64, totalBytesWritten: Int64, totalBytesExpectedToWrite: Int64) {
         guard totalBytesExpectedToWrite > 0 else { return }
         progressHandler?(Double(totalBytesWritten) / Double(totalBytesExpectedToWrite))
@@ -109,7 +139,7 @@ final class DownloadService: NSObject, URLSessionDownloadDelegate {
 }
 
 struct CommandRunner {
-    static func run(_ executable: String, _ arguments: [String], environment: [String: String]? = nil, onLine: @escaping (String) -> Void) async throws {
+    static func run(_ executable: String, _ arguments: [String], environment: [String: String]? = nil, onStart: @escaping (Process) -> Void = { _ in }, onLine: @escaping (String) -> Void) async throws {
         try await withCheckedThrowingContinuation { continuation in
             let process = Process()
             let pipe = Pipe()
@@ -133,7 +163,10 @@ struct CommandRunner {
                     continuation.resume(throwing: AppError.message("A helper process exited with code \(process.terminationStatus)."))
                 }
             }
-            do { try process.run() } catch { continuation.resume(throwing: error) }
+            do {
+                try process.run()
+                onStart(process)
+            } catch { continuation.resume(throwing: error) }
         }
     }
 }
