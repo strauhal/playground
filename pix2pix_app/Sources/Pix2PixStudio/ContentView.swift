@@ -82,6 +82,12 @@ private struct NextFrameView: View {
                 }
                 .frame(width: 210)
                 .disabled(state.isWorking || state.nfpModels.isEmpty)
+                Button {
+                    state.revealNFPModelsFolder()
+                } label: {
+                    Label("View Models in Finder", systemImage: "folder")
+                }
+                .disabled(state.isWorking)
                 TextField("Frames", value: $state.nfpMaxTrainingFrames, format: .number)
                     .textFieldStyle(.roundedBorder).frame(width: 72).disabled(state.isWorking)
                 Text("source frames").font(.caption).foregroundStyle(.secondary)

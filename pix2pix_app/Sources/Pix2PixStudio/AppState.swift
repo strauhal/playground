@@ -78,6 +78,15 @@ final class AppState: ObservableObject {
         }
     }
 
+    func revealNFPModelsFolder() {
+        do {
+            try workspace.createDirectories()
+            NSWorkspace.shared.open(workspace.nextFrameModels)
+        } catch {
+            errorMessage = "Could not open the model folder: \(error.localizedDescription)"
+        }
+    }
+
     func nfpModelDisplayName(_ url: URL) -> String {
         url == workspace.nextFrameModel ? "Previously Trained Model" : url.deletingPathExtension().lastPathComponent
     }
