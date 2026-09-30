@@ -1,0 +1,321 @@
+{
+	"asset": {
+		"generator": "Tilt Brush 23.3.841faedfb compatible (Actually: Open Brush 2.31.0.)",
+		"version": "2.0",
+		"copyright": "Unknown."
+	},
+	"buffers": [
+		{
+			"byteLength": 7024248,
+			"uri": "sketch.bin"
+		}
+	],
+	"cameras": [
+		{
+			"perspective": {
+				"aspect_ratio": 1.777778,
+				"yfov": 1.047198,
+				"zfar": 100,
+				"znear": 0.01
+			},
+			"type": "perspective"
+		}
+	],
+	"accessors": [
+		{
+			"bufferView": 3,
+			"byteOffset": 0,
+			"componentType": 5126,
+			"count": 65424,
+			"max": [ 0.772056997, 1.79358828, 0.34607783 ],
+			"min": [ -0.273972899, -0.0304419827, -0.549852073 ],
+			"type": "VEC3"
+		},
+		{
+			"bufferView": 3,
+			"byteOffset": 785088,
+			"componentType": 5126,
+			"count": 65424,
+			"type": "VEC3"
+		},
+		{
+			"bufferView": 1,
+			"byteOffset": 0,
+			"componentType": 5121,
+			"normalized": true,
+			"count": 65424,
+			"type": "VEC4"
+		},
+		{
+			"bufferView": 4,
+			"byteOffset": 0,
+			"componentType": 5126,
+			"count": 65424,
+			"type": "VEC4"
+		},
+		{
+			"bufferView": 2,
+			"byteOffset": 0,
+			"componentType": 5126,
+			"count": 65424,
+			"type": "VEC2"
+		},
+		{
+			"bufferView": 3,
+			"byteOffset": 1570176,
+			"componentType": 5126,
+			"count": 65424,
+			"type": "VEC3"
+		},
+		{
+			"bufferView": 0,
+			"byteOffset": 0,
+			"componentType": 5123,
+			"count": 65424,
+			"max": [ 65423 ],
+			"min": [ 0 ],
+			"type": "SCALAR"
+		},
+		{
+			"bufferView": 3,
+			"byteOffset": 2355264,
+			"componentType": 5126,
+			"count": 41004,
+			"max": [ 0.742980063, 1.88750613, 0.377247721 ],
+			"min": [ -0.325904638, -0.0365671515, -0.585674942 ],
+			"type": "VEC3"
+		},
+		{
+			"bufferView": 3,
+			"byteOffset": 2847312,
+			"componentType": 5126,
+			"count": 41004,
+			"type": "VEC3"
+		},
+		{
+			"bufferView": 1,
+			"byteOffset": 261696,
+			"componentType": 5121,
+			"normalized": true,
+			"count": 41004,
+			"type": "VEC4"
+		},
+		{
+			"bufferView": 4,
+			"byteOffset": 1046784,
+			"componentType": 5126,
+			"count": 41004,
+			"type": "VEC4"
+		},
+		{
+			"bufferView": 2,
+			"byteOffset": 523392,
+			"componentType": 5126,
+			"count": 41004,
+			"type": "VEC2"
+		},
+		{
+			"bufferView": 3,
+			"byteOffset": 3339360,
+			"componentType": 5126,
+			"count": 41004,
+			"type": "VEC3"
+		},
+		{
+			"bufferView": 0,
+			"byteOffset": 130848,
+			"componentType": 5123,
+			"count": 41004,
+			"max": [ 41003 ],
+			"min": [ 0 ],
+			"type": "SCALAR"
+		}
+	],
+	"bufferViews": [
+		{
+			"buffer": 0,
+			"byteLength": 212856,
+			"byteOffset": 0,
+			"target": 34963
+		},
+		{
+			"buffer": 0,
+			"byteLength": 425712,
+			"byteOffset": 212856,
+			"byteStride": 4,
+			"target": 34962
+		},
+		{
+			"buffer": 0,
+			"byteLength": 851424,
+			"byteOffset": 638568,
+			"byteStride": 8,
+			"target": 34962
+		},
+		{
+			"buffer": 0,
+			"byteLength": 3831408,
+			"byteOffset": 1489992,
+			"byteStride": 12,
+			"target": 34962
+		},
+		{
+			"buffer": 0,
+			"byteLength": 1702848,
+			"byteOffset": 5321400,
+			"byteStride": 16,
+			"target": 34962
+		}
+	],
+	"meshes": [
+		{
+			"name": "brush_DuctTape_g0_b0",
+			"primitives": [
+				{
+					"attributes": {
+						"POSITION": 0,
+						"NORMAL": 1,
+						"COLOR_0": 2,
+						"TANGENT": 3,
+						"_TB_TIMESTAMP": 5,
+						"_TB_UNITY_TEXCOORD_0": 4,
+						"TEXCOORD_0": 4
+					},
+					"indices": 6,
+					"material": 0,
+					"mode": 4
+				}
+			]
+		},
+		{
+			"name": "brush_DuctTape_g0_b1",
+			"primitives": [
+				{
+					"attributes": {
+						"POSITION": 7,
+						"NORMAL": 8,
+						"COLOR_0": 9,
+						"TANGENT": 10,
+						"_TB_TIMESTAMP": 12,
+						"_TB_UNITY_TEXCOORD_0": 11,
+						"TEXCOORD_0": 11
+					},
+					"indices": 13,
+					"material": 0,
+					"mode": 4
+				}
+			]
+		}
+	],
+	"samplers": [
+		{
+			"magFilter": 9729,
+			"minFilter": 9987,
+			"wrapS": 10497,
+			"wrapT": 10497
+		}
+	],
+	"textures": [
+		{
+			"sampler": 0,
+			"source": 0
+		},
+		{
+			"sampler": 0,
+			"source": 1
+		}
+	],
+	"images": [
+		{
+			"uri": "Brush_DuctTape-d0262945-853c-4481-9cbd-88586bed93cb-v10.0-MainTex.png"
+		},
+		{
+			"uri": "Brush_DuctTape-d0262945-853c-4481-9cbd-88586bed93cb-v10.0-BumpMap.png"
+		}
+	],
+	"materials": [
+		{
+			"alphaMode": "MASK",
+			"alphaCutoff": 0.200000003,
+			"doubleSided": true,
+			"pbrMetallicRoughness": {
+				"baseColorTexture": {
+					"index": 0,
+					"texCoord": 0
+				},
+				"metallicFactor": 0,
+				"roughnessFactor": 0.585999966
+			},
+			"normalTexture": {
+				"index": 1,
+				"texCoord": 0
+			},
+			"name": "brush_DuctTape",
+			"extensions": {
+				"GOOGLE_tilt_brush_material": {
+					"guid": "d0262945-853c-4481-9cbd-88586bed93cb"
+				}
+			}
+		}
+	],
+	"nodes": [
+		{
+			"name": "brush_DuctTape_g0_b0",
+			"mesh": 0
+		},
+		{
+			"name": "node_SceneLight_0_i1",
+			"matrix": [0.898794, -0.2191856, -0.3796406, 0, 0.4383712, 0.449397, 0.7783785, 0, -1.490116E-08, -0.8660254, 0.4999999, 0, 10.5352, -5.660787, -20.18919, 1]
+		},
+		{
+			"name": "node_SceneLight_1_i2",
+			"matrix": [0.7660444, 0.4924039, -0.4131759, 0, 0.6427876, -0.5868242, 0.4924039, 0, 8.940697E-08, -0.6427876, -0.7660446, 0, 10.5352, -5.759759, -19.62789, 1]
+		},
+		{
+			"name": "brush_DuctTape_g0_b1",
+			"mesh": 1
+		},
+		{
+			"name": "SaveCameraNode",
+			"camera": 0,
+			"matrix": [-0.6960466, 0.003141142, -0.7179899, 0, 0.1995412, 0.9614431, -0.1892366, 0, 0.689712, -0.274986, -0.6698359, 0, -0.9812689, 1.39206, 1.41995, 1]
+		}
+	],
+	"scene": 0,
+	"scenes": [
+		{
+			"nodes": [
+				0,
+				1,
+				2,
+				3,
+				4
+			],
+			"extras": {
+				"TB_EnvironmentGuid": "e38af599-4575-46ff-a040-459703dbcd36",
+				"TB_Environment": "Passthrough",
+				"TB_UseGradient": "true",
+				"TB_SkyColorA": "0, 0, 0",
+				"TB_SkyColorB": "0, 0, 0",
+				"TB_SkyGradientDirection": "0, 1, 0",
+				"TB_FogColor": "0, 0, 0",
+				"TB_FogDensity": "0",
+				"TB_AmbientLightColor": "0.5, 0.5, 0.5",
+				"TB_SceneLight0Color": "1.169498, 1.194859, 1.313208",
+				"TB_SceneLight0Rotation": "60, -1.707548E-06, 334",
+				"TB_SceneLight1Color": "0.4282353, 0.4211765, 0.3458824",
+				"TB_SceneLight1Rotation": "40, 180, 140",
+				"TB_PoseTranslation": "0, 0, 0",
+				"TB_PoseRotation": "0, 0, 0",
+				"TB_PoseScale": "1",
+				"TB_ExportedFromVersion": "2.31.0",
+				"TB_CameraTranslation": "9.812689, 13.9206, 14.1995",
+				"TB_CameraRotation": "15.96118, 225.8376, 359.8128",
+				"TB_FlyMode": "true"
+			}
+		}
+	],
+	"extensionsUsed": [
+		"GOOGLE_tilt_brush_material"
+	]
+}
