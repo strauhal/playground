@@ -4,6 +4,7 @@ import SwiftUI
 enum SidebarPage: String, CaseIterable, Identifiable {
     case studio = "Studio"
     case nextFrame = "Next Frame"
+    case styleGAN2 = "StyleGAN2"
     case downloads = "Models & Data"
     case files = "Files"
 
@@ -12,8 +13,115 @@ enum SidebarPage: String, CaseIterable, Identifiable {
         switch self {
         case .studio: return "wand.and.stars"
         case .nextFrame: return "film.stack"
+        case .styleGAN2: return "point.3.connected.trianglepath.dotted"
         case .downloads: return "square.and.arrow.down"
         case .files: return "folder"
+        }
+    }
+}
+
+enum StyleGANPreset: String, CaseIterable, Identifiable {
+    case ffhq, metfaces, afhqcat, afhqdog, afhqwild, cifar10, brecahad
+
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .ffhq: return "FFHQ · Human Faces"
+        case .metfaces: return "MetFaces · Painted Faces"
+        case .afhqcat: return "AFHQ · Cats"
+        case .afhqdog: return "AFHQ · Dogs"
+        case .afhqwild: return "AFHQ · Wild Animals"
+        case .cifar10: return "CIFAR-10 · Objects"
+        case .brecahad: return "BreCaHAD · Histology"
+        }
+    }
+    var shortTitle: String {
+        switch self {
+        case .ffhq: return "FFHQ"
+        case .metfaces: return "MetFaces"
+        case .afhqcat: return "AFHQ Cat"
+        case .afhqdog: return "AFHQ Dog"
+        case .afhqwild: return "AFHQ Wild"
+        case .cifar10: return "CIFAR-10"
+        case .brecahad: return "BreCaHAD"
+        }
+    }
+    var nativeResolution: Int {
+        switch self {
+        case .ffhq, .metfaces: return 1024
+        case .afhqcat, .afhqdog, .afhqwild, .brecahad: return 512
+        case .cifar10: return 32
+        }
+    }
+    var modelSize: String {
+        switch self {
+        case .ffhq, .metfaces: return "382 MB"
+        case .afhqcat, .afhqdog, .afhqwild, .brecahad: return "364 MB"
+        case .cifar10: return "246 MB"
+        }
+    }
+    var downloadURL: URL {
+        URL(string: "https://nvlabs-fi-cdn.nvidia.com/stylegan2-ada-pytorch/pretrained/\(rawValue).pkl")!
+    }
+    var symbol: String {
+        switch self {
+        case .ffhq: return "person.crop.square"
+        case .metfaces: return "paintpalette.fill"
+        case .afhqcat: return "cat.fill"
+        case .afhqdog, .afhqwild: return "pawprint.fill"
+        case .cifar10: return "square.grid.3x3.fill"
+        case .brecahad: return "circle.hexagongrid.fill"
+        }
+    }
+}
+
+enum StyleGANMode: String, CaseIterable, Identifiable {
+    case latent = "Latent Journey"
+    case video = "Project Video"
+    case training = "Train from Videos"
+    var id: String { rawValue }
+}
+
+enum StyleGANInterpolation: String, CaseIterable, Identifiable {
+    case smooth = "Smooth"
+    case linear = "Linear"
+    case spherical = "Spherical"
+    var id: String { rawValue }
+}
+
+enum StyleGANNoiseMode: String, CaseIterable, Identifiable {
+    case constant = "Stable"
+    case random = "Living"
+    case none = "None"
+    var id: String { rawValue }
+    var backendValue: String { self == .constant ? "const" : rawValue }
+}
+
+enum StyleGANVideoFit: String, CaseIterable, Identifiable {
+    case fit = "Fit Entire Frame"
+    case crop = "Center Crop"
+    case stretch = "Stretch"
+    var id: String { rawValue }
+    var backendValue: String {
+        switch self { case .fit: return "fit"; case .crop: return "crop"; case .stretch: return "stretch" }
+    }
+}
+
+enum StyleGANTrainingSize: Int, CaseIterable, Identifiable {
+    case quick64 = 64
+    case fast128 = 128
+    case balanced256 = 256
+    case detailed512 = 512
+    case native = 0
+
+    var id: Int { rawValue }
+    var title: String {
+        switch self {
+        case .quick64: return "Quick Sketch · 64 px"
+        case .fast128: return "Fast Preview · 128 px"
+        case .balanced256: return "Balanced · 256 px"
+        case .detailed512: return "Detailed · 512 px"
+        case .native: return "Original Resolution · Slowest"
         }
     }
 }

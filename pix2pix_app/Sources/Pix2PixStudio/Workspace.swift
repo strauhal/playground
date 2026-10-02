@@ -13,6 +13,12 @@ struct Workspace {
     let nextFrame: URL
     let nextFrameModels: URL
     let nextFrameModel: URL
+    let styleGAN: URL
+    let styleGANModels: URL
+    let styleGANRuntime: URL
+    let styleGANSource: URL
+    let styleGANOutput: URL
+    let styleGANDatasets: URL
 
     init() {
         let home = FileManager.default.homeDirectoryForCurrentUser
@@ -26,11 +32,38 @@ struct Workspace {
         nextFrame = support.appendingPathComponent("Next Frame", isDirectory: true)
         nextFrameModels = nextFrame.appendingPathComponent("Models", isDirectory: true)
         nextFrameModel = nextFrame.appendingPathComponent("latest_net_G.pth")
+        styleGAN = support.appendingPathComponent("StyleGAN2", isDirectory: true)
+        styleGANModels = styleGAN.appendingPathComponent("Models", isDirectory: true)
+        styleGANRuntime = styleGAN.appendingPathComponent("Runtime", isDirectory: true)
+        styleGANSource = styleGANRuntime.appendingPathComponent("stylegan2-ada-pytorch-main", isDirectory: true)
+        styleGANOutput = defaultOutput.appendingPathComponent("stylegan2", isDirectory: true)
+        styleGANDatasets = styleGAN.appendingPathComponent("Video Datasets", isDirectory: true)
     }
 
     func createDirectories(output: URL? = nil) throws {
-        for url in [support, models, datasets, runtime, incoming, defaultOutput, frames, nextFrame, nextFrameModels, output ?? defaultOutput] {
+        for url in [support, models, datasets, runtime, incoming, defaultOutput, frames, nextFrame, nextFrameModels, styleGAN, styleGANModels, styleGANRuntime, styleGANOutput, styleGANDatasets, output ?? defaultOutput] {
             try fm.createDirectory(at: url, withIntermediateDirectories: true)
+        }
+    }
+
+    func styleGANModelURL(_ preset: StyleGANPreset) -> URL {
+        styleGANModels.appendingPathComponent("\(preset.rawValue).pkl")
+    }
+
+    func styleGANModelIsInstalled(_ preset: StyleGANPreset) -> Bool {
+        fm.fileExists(atPath: styleGANModelURL(preset).path)
+    }
+
+    func styleGANModelURLs() -> [URL] {
+        guard let urls = try? fm.contentsOfDirectory(
+            at: styleGANModels,
+            includingPropertiesForKeys: [.contentModificationDateKey],
+            options: [.skipsHiddenFiles]
+        ) else { return [] }
+        return urls.filter { $0.pathExtension.lowercased() == "pkl" }.sorted {
+            let left = (try? $0.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+            let right = (try? $1.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+            return left > right
         }
     }
 
@@ -81,10 +114,13 @@ final class DownloadService: NSObject, URLSessionDownloadDelegate {
     private var progressHandler: ((Double) -> Void)?
     private var session: URLSession?
 
-    func download(from source: URL, to destination: URL, progress: @escaping (Double) -> Void) async throws {
+    private var minimumBytes = 1_000_000
+
+    func download(from source: URL, to destination: URL, minimumBytes: Int = 1_000_000, progress: @escaping (Double) -> Void) async throws {
         try await withCheckedThrowingContinuation { continuation in
             self.continuation = continuation
             self.destination = destination
+            self.minimumBytes = minimumBytes
             self.progressHandler = progress
             let configuration = URLSessionConfiguration.default
             configuration.timeoutIntervalForRequest = 600
@@ -113,7 +149,7 @@ final class DownloadService: NSObject, URLSessionDownloadDelegate {
                 throw AppError.message("The download server returned HTTP \(response.statusCode).")
             }
             let size = (try? location.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
-            guard size > 1_000_000 else { throw AppError.message("The server returned an incomplete download.") }
+            guard size > minimumBytes else { throw AppError.message("The server returned an incomplete download.") }
             try FileManager.default.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
             try? FileManager.default.removeItem(at: destination)
             try FileManager.default.moveItem(at: location, to: destination)

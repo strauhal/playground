@@ -27,6 +27,7 @@ struct ContentView: View {
             switch state.page ?? .studio {
             case .studio: StudioView()
             case .nextFrame: NextFrameView()
+            case .styleGAN2: StyleGANView()
             case .downloads: DownloadsView()
             case .files: FilesView()
             }
@@ -38,6 +39,324 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in
             state.stopAllWork()
         }
+    }
+}
+
+private struct StyleGANView: View {
+    @EnvironmentObject private var state: AppState
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("StyleGAN2 Studio").font(.title2.bold())
+                    Text("Generate latent journeys, project footage, or fine-tune a model from your own videos.")
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                StatusPill(installed: state.selectedStyleGANModelURL != nil)
+            }
+            .padding(22)
+
+            Divider()
+
+            ScrollView {
+                VStack(spacing: 18) {
+                    HStack(spacing: 12) {
+                        Picker("World", selection: Binding(
+                            get: { state.styleGANPreset },
+                            set: { state.selectOfficialStyleGANPreset($0) }
+                        )) {
+                            ForEach(StyleGANPreset.allCases) { Text($0.title).tag($0) }
+                        }
+                        .frame(width: 235)
+                        .disabled(state.isWorking)
+
+                        Picker("Checkpoint", selection: Binding<URL?>(
+                            get: { state.selectedStyleGANModelURL },
+                            set: { state.selectStyleGANModel($0) }
+                        )) {
+                            Text("Choose a checkpoint").tag(Optional<URL>.none)
+                            ForEach(state.styleGANModels, id: \.self) { url in
+                                Text(state.styleGANModelDisplayName(url)).tag(Optional(url))
+                            }
+                        }
+                        .frame(width: 245)
+                        .disabled(state.isWorking || state.styleGANModels.isEmpty)
+
+                        Text("Native \(state.styleGANPreset.nativeResolution) px · \(state.styleGANPreset.modelSize)")
+                            .font(.caption).foregroundStyle(.secondary)
+                        Spacer()
+                        if state.styleGANModelStates[state.styleGANPreset] != true {
+                            Button {
+                                state.installStyleGANModel(state.styleGANPreset)
+                            } label: {
+                                Label("Download Model", systemImage: "arrow.down.circle")
+                            }
+                            .buttonStyle(.borderedProminent).tint(.purple)
+                            .disabled(state.isWorking)
+                        }
+                        Button { state.revealStyleGANModels() } label: {
+                            Label("View Models in Finder", systemImage: "folder")
+                        }
+                        .disabled(state.isWorking)
+                    }
+                    .padding(14)
+                    .background(Color.purple.opacity(0.06), in: RoundedRectangle(cornerRadius: 14))
+
+                    Picker("Mode", selection: $state.styleGANMode) {
+                        ForEach(StyleGANMode.allCases) { Text($0.rawValue).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(maxWidth: 440)
+                    .disabled(state.isWorking)
+
+                    HStack(spacing: 18) {
+                        VStack(alignment: .leading, spacing: 11) {
+                            HStack {
+                                Text(sourceTitle)
+                                    .font(.caption.bold()).foregroundStyle(.secondary)
+                                Spacer()
+                                Text(sourceSubtitle)
+                                    .font(.caption).foregroundStyle(.tertiary)
+                            }
+                            if state.styleGANMode == .video {
+                                DropVideoView(image: state.styleGANVideoThumbnail, name: state.styleGANVideoURL?.lastPathComponent)
+                                    .onDrop(of: [UTType.fileURL.identifier, UTType.item.identifier, UTType.data.identifier], isTargeted: nil, perform: state.acceptStyleGANVideoDrop)
+                                Button("Choose Any Video…") { state.chooseStyleGANVideo() }.disabled(state.isWorking)
+                            } else if state.styleGANMode == .training {
+                                DropVideoView(
+                                    image: state.styleGANVideoThumbnail,
+                                    name: state.styleGANTrainingVideos.isEmpty ? nil : "\(state.styleGANTrainingVideos.count) source video\(state.styleGANTrainingVideos.count == 1 ? "" : "s")"
+                                )
+                                .onDrop(of: [UTType.fileURL.identifier, UTType.item.identifier, UTType.data.identifier], isTargeted: nil, perform: state.acceptStyleGANTrainingVideoDrop)
+                                HStack {
+                                    Button("Choose Videos…") { state.chooseStyleGANTrainingVideos() }.disabled(state.isWorking)
+                                    Button("Clear") { state.clearStyleGANTrainingVideos() }
+                                        .disabled(state.isWorking || state.styleGANTrainingVideos.isEmpty)
+                                    Button("View Extracted Frames") { state.revealStyleGANDatasets() }
+                                }
+                            } else {
+                                ZStack {
+                                    RoundedRectangle(cornerRadius: 12).fill(Color(nsColor: .controlBackgroundColor))
+                                    VStack(spacing: 12) {
+                                        Image(systemName: "point.3.connected.trianglepath.dotted")
+                                            .font(.system(size: 48)).foregroundStyle(.purple)
+                                        Text("Random latent coordinates").font(.headline)
+                                        Text("No source file needed").font(.caption).foregroundStyle(.secondary)
+                                    }
+                                }.frame(minHeight: 250)
+                            }
+                        }
+                        .padding(16).frame(maxWidth: .infinity)
+                        .background(.background, in: RoundedRectangle(cornerRadius: 16))
+                        .overlay(RoundedRectangle(cornerRadius: 16).stroke(.quaternary))
+
+                        Image(systemName: "arrow.right").font(.title2.bold()).foregroundStyle(.tertiary)
+
+                        VStack(alignment: .leading, spacing: 11) {
+                            HStack {
+                                Text(state.styleGANMode == .training ? "TRAINING PREVIEW" : "LATEST FRAME").font(.caption.bold()).foregroundStyle(.secondary)
+                                Spacer()
+                                if state.isStyleGANRunning {
+                                    Text(styleGANProgressText)
+                                        .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                                }
+                            }
+                            ResultImageView(image: state.outputImage, url: state.outputURL)
+                                .frame(minHeight: 250)
+                            HStack {
+                                Button("Open StyleGAN2 Output") { state.revealStyleGANOutput() }
+                                Button("Show Latest Frame") {
+                                    if let url = state.outputURL { state.reveal(url) }
+                                }.disabled(state.outputURL == nil)
+                                Button("Show Movie") {
+                                    if let url = state.styleGANOutputVideoURL { state.reveal(url) }
+                                }.disabled(state.styleGANOutputVideoURL == nil || state.styleGANMode == .training)
+                            }
+                        }
+                        .padding(16).frame(maxWidth: .infinity)
+                        .background(.background, in: RoundedRectangle(cornerRadius: 16))
+                        .overlay(RoundedRectangle(cornerRadius: 16).stroke(.quaternary))
+                    }
+
+                    HStack(alignment: .top, spacing: 14) {
+                        GroupBox("Journey") {
+                            VStack(alignment: .leading, spacing: 12) {
+                                if state.styleGANMode == .latent {
+                                    labeledField("Keyframes", value: $state.styleGANKeyframes, width: 62)
+                                    labeledField("Frames per transition", value: $state.styleGANTransitionFrames, width: 68)
+                                    labeledField("Frames per second", value: $state.styleGANFPS, width: 62)
+                                    Picker("Interpolation", selection: $state.styleGANInterpolation) {
+                                        ForEach(StyleGANInterpolation.allCases) { Text($0.rawValue).tag($0) }
+                                    }
+                                    Toggle("Seamless loop", isOn: $state.styleGANLoop).toggleStyle(.checkbox)
+                                } else if state.styleGANMode == .video {
+                                    labeledField("Video samples", value: $state.styleGANVideoKeyframes, width: 62)
+                                    labeledField("Projection steps", value: $state.styleGANProjectionSteps, width: 68)
+                                    Picker("Frame fitting", selection: $state.styleGANVideoFit) {
+                                        ForEach(StyleGANVideoFit.allCases) { Text($0.rawValue).tag($0) }
+                                    }
+                                    labeledField("Frames per transition", value: $state.styleGANTransitionFrames, width: 68)
+                                    labeledField("Frames per second", value: $state.styleGANFPS, width: 62)
+                                    Picker("Interpolation", selection: $state.styleGANInterpolation) {
+                                        ForEach(StyleGANInterpolation.allCases) { Text($0.rawValue).tag($0) }
+                                    }
+                                    Toggle("Seamless loop", isOn: $state.styleGANLoop).toggleStyle(.checkbox)
+                                } else {
+                                    Picker("Training speed", selection: $state.styleGANTrainingSize) {
+                                        ForEach(StyleGANTrainingSize.allCases) { Text($0.title).tag($0) }
+                                    }
+                                    labeledField("Maximum source frames", value: $state.styleGANTrainingMaxFrames, width: 72)
+                                    labeledField("Use every nth frame", value: $state.styleGANTrainingFrameStep, width: 62)
+                                    labeledField("Epochs", value: $state.styleGANTrainingEpochs, width: 62)
+                                    Picker("Frame fitting", selection: $state.styleGANVideoFit) {
+                                        ForEach(StyleGANVideoFit.allCases) { Text($0.rawValue).tag($0) }
+                                    }
+                                }
+                            }.padding(8)
+                        }
+
+                        GroupBox(state.styleGANMode == .training ? "Training" : "Latent Space") {
+                            VStack(alignment: .leading, spacing: 12) {
+                                if state.styleGANMode == .training {
+                                    labeledField("Batch size", value: $state.styleGANTrainingBatchSize, width: 62)
+                                    labeledField("Learning rate", value: $state.styleGANTrainingLearningRate, width: 86)
+                                    Toggle("Training augmentation", isOn: $state.styleGANTrainingAugment).toggleStyle(.checkbox)
+                                    Text("Augmentation helps smaller collections of video frames overfit less quickly.")
+                                        .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                                } else {
+                                    sliderRow("Travel distance", value: $state.styleGANDistance, range: 0...4)
+                                    sliderRow("Truncation", value: $state.styleGANTruncation, range: 0...2)
+                                    Picker("Texture noise", selection: $state.styleGANNoise) {
+                                        ForEach(StyleGANNoiseMode.allCases) { Text($0.rawValue).tag($0) }
+                                    }
+                                    labeledField("Random seed", value: $state.styleGANSeed, width: 80)
+                                }
+                                if state.styleGANPreset == .cifar10 {
+                                    Picker("CIFAR class", selection: $state.styleGANClassIndex) {
+                                        ForEach(0..<10, id: \.self) { Text("Class \($0)").tag($0) }
+                                    }
+                                }
+                            }.padding(8)
+                        }
+
+                        GroupBox(state.styleGANMode == .training ? "Save Model" : "Style Mixing") {
+                            VStack(alignment: .leading, spacing: 12) {
+                                if state.styleGANMode == .training {
+                                    TextField("Model name", text: $state.styleGANTrainingName).textFieldStyle(.roundedBorder)
+                                    Text("Training starts from the selected checkpoint. The finished model is saved in Models and selected automatically.")
+                                        .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                                    if state.styleGANPreset.nativeResolution >= 512 {
+                                        Label("512–1024 px training is demanding. Start with a small frame set and one epoch.", systemImage: "exclamationmark.triangle")
+                                            .font(.caption).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
+                                    }
+                                } else {
+                                    sliderRow("Mix amount", value: $state.styleGANStyleMix, range: 0...1)
+                                    labeledField("Layer cutoff", value: $state.styleGANStyleCutoff, width: 62)
+                                    Text("A second latent can supply later layers—usually color and fine texture—while early layers retain structure.")
+                                        .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                                }
+                            }.padding(8)
+                        }
+                    }
+                    .disabled(state.isWorking)
+
+                    if state.styleGANMode == .video {
+                        Label("Projection is domain-specific: footage is automatically fitted, but FFHQ interprets every frame as a face, AFHQ as an animal, and so on.", systemImage: "info.circle")
+                            .font(.caption).foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    } else if state.styleGANMode == .training {
+                        Label("This fine-tunes the selected visual world from all chosen videos. Source frames are sampled automatically and kept with the training previews.", systemImage: "info.circle")
+                            .font(.caption).foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+                .padding(22)
+            }
+
+            Divider()
+            HStack(spacing: 12) {
+                Label("Official NVIDIA StyleGAN2-ADA · PyTorch · Metal when supported", systemImage: "apple.logo")
+                    .font(.caption).foregroundStyle(.secondary)
+                Spacer()
+                if state.styleGANMode != .training {
+                    Picker("Output", selection: $state.exportSize) {
+                        ForEach(ExportSize.allCases) { Text($0.label).tag($0) }
+                    }.frame(width: 150).disabled(state.isWorking)
+                }
+                if state.isStyleGANRunning {
+                    Button(role: .destructive) { state.stopStyleGAN() } label: {
+                        Label("Stop", systemImage: "stop.fill")
+                    }.controlSize(.large)
+                }
+                Button { state.runStyleGAN() } label: {
+                    Label(styleGANActionLabel, systemImage: state.styleGANMode == .training ? "brain.head.profile" : "sparkles.tv")
+                        .frame(minWidth: 145)
+                }
+                .buttonStyle(.borderedProminent).controlSize(.large).tint(.purple)
+                .disabled(state.isWorking || state.selectedStyleGANModelURL == nil || (state.styleGANMode == .video && state.styleGANVideoURL == nil) || (state.styleGANMode == .training && state.styleGANTrainingVideos.isEmpty))
+            }
+            .padding(16)
+        }
+        .background(Color(nsColor: .windowBackgroundColor))
+    }
+
+    private func labeledField(_ label: String, value: Binding<Int>, width: CGFloat) -> some View {
+        HStack { Text(label); Spacer(); TextField(label, value: value, format: .number).textFieldStyle(.roundedBorder).frame(width: width) }
+    }
+
+    private func labeledField(_ label: String, value: Binding<Double>, width: CGFloat) -> some View {
+        HStack { Text(label); Spacer(); TextField(label, value: value, format: .number).textFieldStyle(.roundedBorder).frame(width: width) }
+    }
+
+    private var sourceTitle: String {
+        switch state.styleGANMode { case .latent: return "LATENT SOURCE"; case .video: return "SOURCE VIDEO"; case .training: return "TRAINING VIDEOS" }
+    }
+
+    private var sourceSubtitle: String {
+        switch state.styleGANMode { case .latent: return "Seeded and repeatable"; case .video: return "No manual cropping required"; case .training: return "Drop one or many videos" }
+    }
+
+    private var styleGANProgressText: String {
+        if state.styleGANMode == .training {
+            return state.totalStyleGANTrainingSteps > 0 ? "\(state.completedStyleGANTrainingSteps) / \(state.totalStyleGANTrainingSteps)" : "Preparing frames…"
+        }
+        return "\(state.completedStyleGANFrames) / \(max(state.totalStyleGANFrames, 1))"
+    }
+
+    private var styleGANActionLabel: String {
+        if state.styleGANMode == .training { return state.isStyleGANRunning ? "Training…" : "Train Model" }
+        return state.isStyleGANRunning ? "Rendering…" : "Create Animation"
+    }
+
+    private func sliderRow(_ label: String, value: Binding<Double>, range: ClosedRange<Double>) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack { Text(label); Spacer(); Text(value.wrappedValue, format: .number.precision(.fractionLength(2))).monospacedDigit().foregroundStyle(.secondary) }
+            Slider(value: value, in: range, step: 0.05)
+        }
+    }
+}
+
+private struct DropVideoView: View {
+    let image: NSImage?
+    let name: String?
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 12).fill(Color(nsColor: .controlBackgroundColor))
+            if let image {
+                Image(nsImage: image).resizable().scaledToFit().padding(8)
+            } else {
+                VStack(spacing: 12) {
+                    Image(systemName: "film.badge.plus").font(.system(size: 44)).foregroundStyle(.purple)
+                    Text(name ?? "Drop any video").font(.headline).lineLimit(1)
+                    Text("MOV · MP4 · M4V · MKV · AVI · WebM and other FFmpeg formats")
+                        .font(.caption).foregroundStyle(.tertiary).multilineTextAlignment(.center)
+                }.padding()
+            }
+        }
+        .frame(minHeight: 250)
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(style: StrokeStyle(lineWidth: 1.5, dash: [7])).foregroundStyle(.quaternary))
     }
 }
 
@@ -450,6 +769,10 @@ private struct DownloadsView: View {
                 LazyVGrid(columns: columns, spacing: 14) {
                     ForEach(Pix2PixPreset.cycleGANModels) { item in ModelDownloadCard(item: item) }
                 }
+                sectionTitle("STYLEGAN2-ADA MODELS", detail: "Official NVIDIA generative models for latent journeys, style mixing, and automatic video projection.")
+                LazyVGrid(columns: columns, spacing: 14) {
+                    ForEach(StyleGANPreset.allCases) { item in StyleGANDownloadCard(item: item) }
+                }
                 sectionTitle("PAIRED DATASETS", detail: "Large archives expand into the app’s Data folder.")
                 LazyVGrid(columns: columns, spacing: 14) {
                     ForEach(DatasetPackage.allCases) { item in DatasetDownloadCard(item: item) }
@@ -467,6 +790,23 @@ private struct DownloadsView: View {
 
     private func sectionTitle(_ title: String, detail: String) -> some View {
         VStack(alignment: .leading, spacing: 3) { Text(title).font(.caption.bold()).foregroundStyle(.secondary); Text(detail).font(.caption).foregroundStyle(.tertiary) }
+    }
+}
+
+private struct StyleGANDownloadCard: View {
+    @EnvironmentObject private var state: AppState
+    let item: StyleGANPreset
+    var body: some View {
+        HStack(spacing: 14) {
+            Image(systemName: item.symbol).font(.title2).foregroundStyle(.purple).frame(width: 36, height: 36).background(Color.purple.opacity(0.12), in: RoundedRectangle(cornerRadius: 9))
+            VStack(alignment: .leading, spacing: 3) {
+                Text(item.title).font(.headline)
+                Text("\(item.modelSize) · native \(item.nativeResolution) px").font(.caption).foregroundStyle(.secondary)
+            }
+            Spacer()
+            if state.styleGANModelStates[item] == true { Image(systemName: "checkmark.circle.fill").foregroundStyle(.green) }
+            else { Button("Install") { state.installStyleGANModel(item) }.disabled(state.isWorking) }
+        }.padding(14).background(.background, in: RoundedRectangle(cornerRadius: 12)).overlay(RoundedRectangle(cornerRadius: 12).stroke(.quaternary))
     }
 }
 
@@ -519,6 +859,10 @@ private struct FilesView: View {
             }
             pathCard(title: "Animation Frames", symbol: "film.stack.fill", url: state.workspace.frames) {
                 Button("Open Frames") { state.revealFramesFolder() }.buttonStyle(.borderedProminent)
+            }
+            pathCard(title: "StyleGAN2 Animations", symbol: "point.3.connected.trianglepath.dotted", url: state.workspace.styleGANOutput) {
+                Button("Open Output") { state.revealStyleGANOutput() }.buttonStyle(.borderedProminent)
+                Button("Open Models") { state.revealStyleGANModels() }
             }
             pathCard(title: "Models, Data & Runtime", symbol: "internaldrive.fill", url: state.workspace.support) {
                 Button("Open in Finder") { state.revealSupportFolder() }
