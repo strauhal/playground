@@ -45,6 +45,11 @@ final class AppState: ObservableObject {
     @Published var styleGANMode: StyleGANMode = .latent
     @Published var styleGANVideoURL: URL?
     @Published var styleGANVideoThumbnail: NSImage?
+    @Published var styleGANAnchorURL: URL?
+    @Published var styleGANAnchorImage: NSImage?
+    @Published var styleGANAnchorEnabled = false
+    @Published var styleGANAnchorStrength = 0.35
+    @Published var styleGANAnchorProjectionSteps = 100
     @Published var styleGANKeyframes = 4
     @Published var styleGANVideoKeyframes = 4
     @Published var styleGANTransitionFrames = 48
@@ -483,6 +488,50 @@ final class AppState: ObservableObject {
         if panel.runModal() == .OK { appendStyleGANTrainingVideos(panel.urls) }
     }
 
+    func chooseStyleGANAnchorImage() {
+        guard !isWorking else { return }
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.image]
+        panel.allowsMultipleSelection = false
+        panel.prompt = "Use as Reference"
+        if panel.runModal() == .OK, let url = panel.url { setStyleGANAnchor(url) }
+    }
+
+    func acceptStyleGANAnchorDrop(_ providers: [NSItemProvider]) -> Bool {
+        guard !isWorking,
+              let provider = providers.first(where: { $0.hasItemConformingToTypeIdentifier(UTType.image.identifier) }) else { return false }
+        let incomingDirectory = workspace.incoming
+        provider.loadFileRepresentation(forTypeIdentifier: UTType.image.identifier) { [weak self] url, error in
+            guard let self, let url, error == nil else { return }
+            let ext = url.pathExtension.isEmpty ? "png" : url.pathExtension
+            let target = incomingDirectory.appendingPathComponent("stylegan-reference-\(UUID().uuidString).\(ext)")
+            do {
+                // NSItemProvider's URL is temporary and must be copied before this callback returns.
+                try FileManager.default.copyItem(at: url, to: target)
+                Task { @MainActor in self.setStyleGANAnchor(target) }
+            } catch { Task { @MainActor in self.errorMessage = error.localizedDescription } }
+        }
+        return true
+    }
+
+    func clearStyleGANAnchor() {
+        styleGANAnchorURL = nil
+        styleGANAnchorImage = nil
+        styleGANAnchorEnabled = false
+        activity = "StyleGAN2 reference image cleared"
+    }
+
+    private func setStyleGANAnchor(_ url: URL) {
+        guard let image = NSImage(contentsOf: url) else {
+            errorMessage = "That reference file is not an image macOS can read."
+            return
+        }
+        styleGANAnchorURL = url
+        styleGANAnchorImage = image
+        styleGANAnchorEnabled = true
+        activity = "StyleGAN2 reference ready · \(url.lastPathComponent)"
+    }
+
     func acceptStyleGANTrainingVideoDrop(_ providers: [NSItemProvider]) -> Bool {
         guard !isWorking else { return false }
         let matching = providers.compactMap { provider -> (NSItemProvider, String)? in
@@ -490,17 +539,17 @@ final class AppState: ObservableObject {
             return (provider, identifier)
         }
         guard !matching.isEmpty else { return false }
+        let incomingDirectory = workspace.incoming
         for (provider, identifier) in matching {
             provider.loadFileRepresentation(forTypeIdentifier: identifier) { [weak self] url, error in
                 guard let self, let url, error == nil else { return }
-                Task { @MainActor in
-                    let ext = url.pathExtension.isEmpty ? "mov" : url.pathExtension
-                    let target = self.workspace.incoming.appendingPathComponent("stylegan-training-\(UUID().uuidString).\(ext)")
-                    do {
-                        try FileManager.default.copyItem(at: url, to: target)
-                        self.appendStyleGANTrainingVideos([target])
-                    } catch { self.errorMessage = error.localizedDescription }
-                }
+                let ext = url.pathExtension.isEmpty ? "mov" : url.pathExtension
+                let target = incomingDirectory.appendingPathComponent("stylegan-training-\(UUID().uuidString).\(ext)")
+                do {
+                    // Preserve every temporary provider file while it is still valid.
+                    try FileManager.default.copyItem(at: url, to: target)
+                    Task { @MainActor in self.appendStyleGANTrainingVideos([target]) }
+                } catch { Task { @MainActor in self.errorMessage = error.localizedDescription } }
             }
         }
         return true
@@ -585,11 +634,13 @@ final class AppState: ObservableObject {
         styleGANTransitionFrames = min(max(styleGANTransitionFrames, 2), 600)
         styleGANFPS = min(max(styleGANFPS, 1), 60)
         styleGANProjectionSteps = min(max(styleGANProjectionSteps, 10), 1_000)
+        styleGANAnchorProjectionSteps = min(max(styleGANAnchorProjectionSteps, 10), 1_000)
         styleGANSeed = max(styleGANSeed, 0)
         styleGANDistance = min(max(styleGANDistance, 0), 4)
         styleGANTruncation = min(max(styleGANTruncation, 0), 2)
         styleGANStyleMix = min(max(styleGANStyleMix, 0), 1)
         styleGANStyleCutoff = min(max(styleGANStyleCutoff, 0), 32)
+        styleGANAnchorStrength = min(max(styleGANAnchorStrength, 0), 1)
 
         let preset = styleGANPreset
         let mode = styleGANMode
@@ -612,6 +663,9 @@ final class AppState: ObservableObject {
         let fit = styleGANVideoFit
         let projectionSteps = styleGANProjectionSteps
         let classIndex = styleGANClassIndex
+        let anchorImage = styleGANAnchorEnabled ? styleGANAnchorURL : nil
+        let anchorStrength = styleGANAnchorStrength
+        let anchorProjectionSteps = styleGANAnchorProjectionSteps
 
         styleGANTask = Task { [weak self] in
             guard let self else { return }
@@ -645,9 +699,12 @@ final class AppState: ObservableObject {
                     "--noise", noise.backendValue,
                     "--style-mix", String(styleMix),
                     "--style-cutoff", String(styleCutoff),
-                    "--class-index", String(classIndex)]
+                    "--class-index", String(classIndex),
+                    "--anchor-strength", String(anchorStrength),
+                    "--anchor-projection-steps", String(anchorProjectionSteps)]
                 if loop { arguments.append("--loop") }
                 if let video, mode == .video { arguments += ["--video", video.path] }
+                if let anchorImage { arguments += ["--anchor-image", anchorImage.path] }
                 self.activity = mode == .video ? "Projecting source video into StyleGAN2" : "Beginning StyleGAN2 latent journey"
                 try await self.run(python.path, arguments) { line in
                     if line.hasPrefix("STYLEGAN frame "), let divider = line.firstIndex(of: "|") {

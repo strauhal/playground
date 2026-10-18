@@ -20,6 +20,8 @@ Train from Videos mirrors the Next Frame workflow: drop or choose one or more vi
 
 The Training Speed menu changes the network itself: Quick Sketch trains at 64 px, Fast Preview at 128 px, Balanced at 256 px, Detailed at 512 px, and Original Resolution retains the checkpoint's native dimensions. Compatible pretrained layers are transferred into the smaller network. Balanced 256 px is the default and is dramatically cheaper than training a 1024 px model merely to downsample its output. Training runs through PyTorch's MPS backend, which maps its work to Apple's Metal Performance Shaders Graph and GPU kernels; unnecessary discriminator-gradient computation is disabled during generator updates to reduce memory and work.
 
+Latent Journey and Project Video also include Reference Image Guidance. Drop or choose an image, enable Conform movement to reference image, and adjust the strength and projection steps. The reference is projected into the model's W+ latent space and blended into every generated frame, so the original pixels are never overlaid. Reference projections are cached per image, checkpoint, fitting mode, class, and projection settings; repeating a render with the same setup skips the optimization pass.
+
 StyleGAN2 output is stored in `~/Pictures/Pix2Pix Studio/stylegan2`, with each run containing ordinary PNG frames and an H.264 MP4. Downloaded and trained checkpoints are kept in `~/Library/Application Support/Pix2Pix Studio/StyleGAN2/Models`; extracted video datasets and training previews are kept in the neighboring `Video Datasets` folder. These locations are exposed through Finder buttons in the app.
 
 ## Open the app

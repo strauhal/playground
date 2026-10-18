@@ -94,7 +94,13 @@ enum StyleGANNoiseMode: String, CaseIterable, Identifiable {
     case random = "Living"
     case none = "None"
     var id: String { rawValue }
-    var backendValue: String { self == .constant ? "const" : rawValue }
+    var backendValue: String {
+        switch self {
+        case .constant: return "const"
+        case .random: return "random"
+        case .none: return "none"
+        }
+    }
 }
 
 enum StyleGANVideoFit: String, CaseIterable, Identifiable {

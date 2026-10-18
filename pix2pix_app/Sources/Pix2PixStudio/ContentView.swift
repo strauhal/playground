@@ -262,6 +262,50 @@ private struct StyleGANView: View {
                     }
                     .disabled(state.isWorking)
 
+                    if state.styleGANMode != .training {
+                        GroupBox("Reference Image Guidance") {
+                            HStack(spacing: 16) {
+                                ZStack {
+                                    RoundedRectangle(cornerRadius: 10).fill(Color(nsColor: .controlBackgroundColor))
+                                    if let image = state.styleGANAnchorImage {
+                                        Image(nsImage: image).resizable().scaledToFit().padding(6)
+                                    } else {
+                                        VStack(spacing: 6) {
+                                            Image(systemName: "photo.badge.plus").font(.title)
+                                            Text("Drop reference").font(.caption)
+                                        }.foregroundStyle(.secondary)
+                                    }
+                                }
+                                .frame(width: 130, height: 100)
+                                .overlay(RoundedRectangle(cornerRadius: 10).stroke(style: StrokeStyle(lineWidth: 1.5, dash: [6])).foregroundStyle(.quaternary))
+                                .onDrop(of: [UTType.image.identifier, UTType.fileURL.identifier], isTargeted: nil, perform: state.acceptStyleGANAnchorDrop)
+
+                                VStack(alignment: .leading, spacing: 10) {
+                                    Toggle("Conform movement to reference image", isOn: $state.styleGANAnchorEnabled)
+                                        .toggleStyle(.checkbox)
+                                        .disabled(state.styleGANAnchorURL == nil)
+                                    Text(state.styleGANAnchorURL?.lastPathComponent ?? "Choose an image whose identity, shape, or composition should remain present through the movement.")
+                                        .font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                                    HStack {
+                                        Button("Choose Image…") { state.chooseStyleGANAnchorImage() }
+                                        Button("Clear") { state.clearStyleGANAnchor() }.disabled(state.styleGANAnchorURL == nil)
+                                    }
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+
+                                VStack(alignment: .leading, spacing: 10) {
+                                    sliderRow("Conform strength", value: $state.styleGANAnchorStrength, range: 0...1)
+                                    labeledField("Projection steps", value: $state.styleGANAnchorProjectionSteps, width: 68)
+                                    Text("Latent guidance only—the original pixels are never overlaid on generated frames.")
+                                        .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                                }
+                                .frame(maxWidth: 330)
+                            }
+                            .padding(8)
+                        }
+                        .disabled(state.isWorking)
+                    }
+
                     if state.styleGANMode == .video {
                         Label("Projection is domain-specific: footage is automatically fitted, but FFHQ interprets every frame as a face, AFHQ as an animal, and so on.", systemImage: "info.circle")
                             .font(.caption).foregroundStyle(.secondary)

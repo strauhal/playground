@@ -2,7 +2,7 @@ import Foundation
 
 enum StyleGANBackend {
     static let source = #"""
-import argparse, math, sys
+import argparse, hashlib, math, os, sys
 from pathlib import Path
 
 import numpy as np
@@ -117,7 +117,7 @@ def projection_feature_net(torch, device, cache_dir):
     return network
 
 
-def project_frame(args, index, count, image, torch, F, generator, label, device, feature_net, w_average, previous):
+def project_frame(args, index, count, image, torch, F, generator, label, device, feature_net, w_average, previous, steps):
     target_pil = fit_video_frame(image, 224, args.fit)
     target = torch.from_numpy(np.asarray(target_pil, dtype=np.float32).copy()).permute(2, 0, 1).unsqueeze(0).to(device) / 255
     mean = torch.tensor([0.485, 0.456, 0.406], device=device).reshape(1, 3, 1, 1)
@@ -127,8 +127,8 @@ def project_frame(args, index, count, image, torch, F, generator, label, device,
     initial = previous.detach().clone() if previous is not None else w_average.detach().clone()
     value = initial.requires_grad_(True)
     optimizer = torch.optim.Adam([value], lr=0.06, betas=(0.9, 0.999))
-    for step in range(args.projection_steps):
-        position = step / max(args.projection_steps - 1, 1)
+    for step in range(steps):
+        position = step / max(steps - 1, 1)
         learning_rate = 0.06 * (0.5 - 0.5 * math.cos(math.pi * min(1.0, (1.0 - position) / 0.25)))
         for group in optimizer.param_groups: group["lr"] = learning_rate
         generated = generator.synthesis(value, noise_mode="const")
@@ -141,22 +141,26 @@ def project_frame(args, index, count, image, torch, F, generator, label, device,
         optimizer.zero_grad(set_to_none=True)
         loss.backward()
         optimizer.step()
-        if step == 0 or (step + 1) % max(1, args.projection_steps // 10) == 0:
-            print(f"STYLEGAN projecting {index} of {count} · step {step + 1} of {args.projection_steps}", flush=True)
+        if step == 0 or (step + 1) % max(1, steps // 10) == 0:
+            print(f"STYLEGAN projecting {index} of {count} · step {step + 1} of {steps}", flush=True)
     return value.detach()
 
 
-def video_anchors(args, torch, F, generator, label, device):
-    frames = extract_video_keyframes(args)
+def projector_resources(args, torch, generator, label, device):
     rng = np.random.RandomState(args.seed)
     samples = torch.from_numpy(rng.randn(256, generator.z_dim).astype(np.float32)).to(device)
     labels = label.repeat(samples.shape[0], 1)
     with torch.no_grad():
         w_average = generator.mapping(samples, labels).mean(dim=0, keepdim=True)
     feature_net = projection_feature_net(torch, device, args.cache_dir)
+    return feature_net, w_average
+
+
+def video_anchors(args, torch, F, generator, label, device, feature_net, w_average):
+    frames = extract_video_keyframes(args)
     anchors, previous = [], None
     for index, frame in enumerate(frames, 1):
-        previous = project_frame(args, index, len(frames), frame, torch, F, generator, label, device, feature_net, w_average, previous)
+        previous = project_frame(args, index, len(frames), frame, torch, F, generator, label, device, feature_net, w_average, previous, args.projection_steps)
         anchors.append(previous)
     center = torch.stack(anchors).mean(dim=0)
     anchors = [center + (item - center) * args.distance for item in anchors]
@@ -165,7 +169,25 @@ def video_anchors(args, torch, F, generator, label, device):
     return anchors
 
 
-def render(args, torch, generator, label, device, anchors):
+def reference_anchor(args, torch, F, generator, label, device, feature_net, w_average):
+    source = Path(args.anchor_image)
+    stat = source.stat()
+    identity = f"{Path(args.model).resolve()}|{os.path.getmtime(args.model)}|{source.resolve()}|{stat.st_mtime_ns}|{stat.st_size}|{args.fit}|{args.class_index}|{generator.img_resolution}|{args.anchor_projection_steps}"
+    cache = Path(args.cache_dir) / "Reference Latents" / (hashlib.sha256(identity.encode()).hexdigest() + ".npy")
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    if cache.exists():
+        print("STYLEGAN reference cache hit", flush=True)
+        return torch.from_numpy(np.load(cache)).to(device)
+    if feature_net is None or w_average is None:
+        feature_net, w_average = projector_resources(args, torch, generator, label, device)
+    print("STYLEGAN projecting reference image into latent space", flush=True)
+    with Image.open(source) as image:
+        result = project_frame(args, 1, 1, image.copy(), torch, F, generator, label, device, feature_net, w_average, None, args.anchor_projection_steps)
+    np.save(cache, result.detach().cpu().numpy())
+    return result
+
+
+def render(args, torch, generator, label, device, anchors, anchor):
     import imageio_ffmpeg
     output = Path(args.output_dir)
     frames_dir = output / "frames"
@@ -186,6 +208,8 @@ def render(args, torch, generator, label, device, anchors):
         if args.style_mix > 0 and cutoff < generator.num_ws:
             ws = ws.clone()
             ws[:, cutoff:] = ws[:, cutoff:].lerp(reference[:, cutoff:], args.style_mix)
+        if anchor is not None and args.anchor_strength > 0:
+            ws = ws.lerp(anchor, args.anchor_strength)
         with torch.no_grad():
             generated = generator.synthesis(ws, noise_mode=args.noise)
         image = tensor_image(torch, generated, args.output_size)
@@ -210,11 +234,15 @@ def render(args, torch, generator, label, device, anchors):
 
 def main(args):
     torch, F, generator, label, device = setup(args)
+    feature_net = w_average = None
     if args.mode == "video":
-        anchors = video_anchors(args, torch, F, generator, label, device)
+        feature_net, w_average = projector_resources(args, torch, generator, label, device)
+    if args.mode == "video":
+        anchors = video_anchors(args, torch, F, generator, label, device, feature_net, w_average)
     else:
         anchors = random_anchors(args, torch, generator, label, device)
-    render(args, torch, generator, label, device, anchors)
+    anchor = reference_anchor(args, torch, F, generator, label, device, feature_net, w_average) if args.anchor_image else None
+    render(args, torch, generator, label, device, anchors, anchor)
 
 
 parser = argparse.ArgumentParser()
@@ -240,6 +268,9 @@ parser.add_argument("--loop", action="store_true")
 parser.add_argument("--style-mix", type=float, default=0.0)
 parser.add_argument("--style-cutoff", type=int, default=8)
 parser.add_argument("--class-index", type=int, default=0)
+parser.add_argument("--anchor-image")
+parser.add_argument("--anchor-strength", type=float, default=0.35)
+parser.add_argument("--anchor-projection-steps", type=int, default=100)
 arguments = parser.parse_args()
 if arguments.mode == "video" and not arguments.video:
     parser.error("--video is required in video mode")
